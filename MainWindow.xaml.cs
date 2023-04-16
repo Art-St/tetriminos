@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Media;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -44,7 +45,7 @@ namespace Tetriminos
         public MainWindow()
         {
             InitializeComponent();
-            imageControls = SetupGameCanvas(playfieldState._playfield);
+            imageControls = SetupGameCanvas(playfieldState.Playfield);
         }
         private Image[,] SetupGameCanvas(Playfield grid)
         {
@@ -104,18 +105,18 @@ namespace Tetriminos
             int dropDistance = playfieldState.BlockDropDistance();
             foreach(Position position in ghostBlock.TilePositions())
             {
-                imageControls[position._row, position._column].Opacity = 0.25;
-                imageControls[position._row, position._column].Source = tileImages[ghostBlock._id];
+                imageControls[position._row + dropDistance, position._column].Opacity = 0.25;
+                imageControls[position._row + dropDistance, position._column].Source = tileImages[ghostBlock._id];
             }
         }
         private void Draw(PlayfieldState playfieldState)
         {
-            DrawGrid(playfieldState._playfield);
+            DrawGrid(playfieldState.Playfield);
             DrawGhostBlock(playfieldState.CurrentBlock);
             DrawBlock(playfieldState.CurrentBlock);
-            DrawNextBlock(playfieldState._blockQueue);
-            DrawHeldBlock(playfieldState._heldBlock);
-            ScoreText.Text = $"Score: {playfieldState._score}";
+            DrawNextBlock(playfieldState.BlockQueue);
+            DrawHeldBlock(playfieldState.HeldBlock);
+            ScoreText.Text = $"Score: {playfieldState.Score}";
         }
         private async void GameCanvas_Loaded(object sender, RoutedEventArgs e)
         {
@@ -123,7 +124,7 @@ namespace Tetriminos
         }
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
-            if (playfieldState._gameOver)
+            if (playfieldState.GameOver)
                 return;
             switch (e.Key)
             {
@@ -156,20 +157,21 @@ namespace Tetriminos
             GameOverMenu.Visibility = Visibility.Hidden;
             await GameLoop();
         }
+
         private async Task GameLoop()
         {
             Draw(playfieldState);
-
-            while (!playfieldState._gameOver)
+            PlayfieldState.Play(Constants.Audio.MAIN_MUSIC);
+            while (!playfieldState.GameOver)
             {
-                int delay = Math.Max(minDelay, maxDelay - (playfieldState._score * delayDecrease));
+                int delay = Math.Max(minDelay, maxDelay - (playfieldState.RowsCleared * delayDecrease));
                 await Task.Delay(delay);
                 playfieldState.MoveBlockDown();
                 Draw(playfieldState);
             }
 
             GameOverMenu.Visibility = Visibility.Visible;
-            FinalScoreText.Text = $"Score: {playfieldState._score}";
+            FinalScoreText.Text = $"Score: {playfieldState.Score}";
         }
     }
 }

@@ -1,4 +1,11 @@
-﻿namespace Tetriminos.MainFunctions
+﻿using Plugin.SimpleAudioPlayer;
+using System;
+using System.Diagnostics.Eventing.Reader;
+using System.IO;
+using System.Media;
+using System.Reflection;
+
+namespace Tetriminos.MainFunctions
 {
     public class PlayfieldState
     {
@@ -19,90 +26,133 @@
                 }
             }
         }
-        public Playfield _playfield { get; }
-        public BlockQueue _blockQueue { get; }
-        public bool _gameOver { get; private set; }
-        public int _score { get; private set; }
-        public Blocks _heldBlock { get; private set; }
-        public bool _canHold { get; private set; }
+        public Playfield Playfield { get; }
+        public BlockQueue BlockQueue { get; }
+        public bool GameOver { get; private set; }
+        public int Score { get; private set; }
+        public int RowsCleared { get; private set; }
+        public bool Combo { get; private set; }
+        public Blocks HeldBlock { get; private set; }
+        public bool CanHold { get; private set; }
         public PlayfieldState()
         {
-            _playfield = new Playfield(22, 10);
-            _blockQueue = new BlockQueue();
-            CurrentBlock = _blockQueue.RerollBlock();
-            _canHold = true;
+            Playfield = new Playfield(22, 10);
+            BlockQueue = new BlockQueue();
+            CurrentBlock = BlockQueue.RerollBlock();
+            CanHold = true;
+            Combo = false;
         }
         private bool BlockFits()
         {
             foreach (Position position in CurrentBlock.TilePositions())
             {
-                if (!_playfield.IsEmpty(position._row, position._column))
+                if (!Playfield.IsEmpty(position._row, position._column))
                     return false;
             }
             return true;
         }
         public void HoldBlock()
         {
-            if (!_canHold)
+            if (!CanHold)
                 return;
-            if(_heldBlock == null)
+            if(HeldBlock == null)
             {
-                _heldBlock = CurrentBlock;
-                CurrentBlock = _blockQueue.RerollBlock();
+                HeldBlock = CurrentBlock;
+                CurrentBlock = BlockQueue.RerollBlock();
             }
             else
             {
-                Blocks temporaryBlock = CurrentBlock;
-                CurrentBlock = _heldBlock;
-                _heldBlock = temporaryBlock;
+                (HeldBlock, CurrentBlock) = (CurrentBlock, HeldBlock);
             }
-            _canHold = false;
+            CanHold = false;
         }
         public void RotateBlockRight()
         {
             CurrentBlock.RotateRight();
-            if (BlockFits())
+            if (!BlockFits())
+            {
                 CurrentBlock.RotateLeft();
-
+                Play(Constants.SoundEffects.BLOCKED_MOVEMENT);
+            }
+            else
+                Play(Constants.SoundEffects.ROTATE_BLOCK);
         }
         public void RotateBlockLeft()
         {
             CurrentBlock.RotateLeft();
-            if (!BlockFits())
+            if (!BlockFits()) 
+            { 
                 CurrentBlock.RotateRight();
+                Play(Constants.SoundEffects.BLOCKED_MOVEMENT); 
+            }
+            else
+                Play(Constants.SoundEffects.ROTATE_BLOCK);
         }
         public void MoveBlockRight()
         {
             CurrentBlock.Move(0, 1);
             if (!BlockFits())
+            {
                 CurrentBlock.Move(0, -1);
+                Play(Constants.SoundEffects.BLOCKED_MOVEMENT);
+            }
+            else
+                Play(Constants.SoundEffects.MOVE_BLOCK);
         }
         public void MoveBlockLeft()
         {
             CurrentBlock.Move(0, -1);
             if (!BlockFits())
+            {
                 CurrentBlock.Move(0, 1);
+                Play(Constants.SoundEffects.BLOCKED_MOVEMENT);
+            }
+            else
+                Play(Constants.SoundEffects.MOVE_BLOCK);
         }
         private bool IsGameOver()
         {
-            return !(_playfield.IsEmptyRow(0) && _playfield.IsEmptyRow(1));
+            return !(Playfield.IsEmptyRow(0) && Playfield.IsEmptyRow(1));
         }
         private void PlaceBlock()
         {
             foreach (Position position in CurrentBlock.TilePositions())
-                _playfield[position._row, position._column] = CurrentBlock._id;
-            _score += _playfield.ClearFullRows();
+                Playfield[position._row, position._column] = CurrentBlock._id;
+            Score += SetScore(Playfield.ClearFullRows(), Combo, out bool comboSetup);
+            if (comboSetup)
+                Combo = comboSetup;
             if (IsGameOver())
-                _gameOver = true;
+                GameOver = true;
             else
             {
-                CurrentBlock = _blockQueue.RerollBlock();
-                _canHold = true;
+                CurrentBlock = BlockQueue.RerollBlock();
+                CanHold = true;
             }
+        }
+        /// <summary>
+        /// Sets the current value for the total score of the playthrough.
+        /// </summary>
+        /// <param name="rowsToClear"></param>
+        /// <param name="combo"></param>
+        /// <param name="comboSetup"></param>
+        /// <returns>Value of Score to add.</returns>
+        private int SetScore(int rowsToClear, bool combo, out bool comboSetup)
+        {
+            comboSetup = false;
+            RowsCleared += rowsToClear;
+            if (rowsToClear == 4)
+                comboSetup = true;
+            return rowsToClear switch
+            {
+                1 or 2 or 3 => rowsToClear * 100,
+                4 => combo ? (rowsToClear * 600) : rowsToClear * 400,
+                _ => 0,
+            };
         }
         public void MoveBlockDown()
         {
             CurrentBlock.Move(1, 0);
+            Play(Constants.SoundEffects.MOVE_BLOCK);
             if (!BlockFits())
             {
                 CurrentBlock.Move(-1, 0);
@@ -113,7 +163,7 @@
         {
             int drop = 0;
 
-            while (_playfield.IsEmpty(position._row + drop + 1, position._column))
+            while (Playfield.IsEmpty(position._row + drop + 1, position._column))
             {
                 drop++;
             }
@@ -122,7 +172,7 @@
         }
         public int BlockDropDistance()
         {
-            int drop = _playfield._rows;
+            int drop = Playfield._rows;
 
             foreach (Position position in CurrentBlock.TilePositions())
             {
@@ -134,6 +184,26 @@
         {
             CurrentBlock.Move(BlockDropDistance(), 0);
             PlaceBlock();
+        }
+        public static void Play(string audioFile)
+        {
+            ISimpleAudioPlayer player = CrossSimpleAudioPlayer.CreateSimpleAudioPlayer();
+            try
+            {
+                string directory = Directory.GetParent(Directory.GetCurrentDirectory()).Parent.Parent.FullName;
+                player.Load(GetStreamFromFile(audioFile));
+                player.Play();
+            }
+            catch (Exception ex)
+            {
+                // Do nothing.
+            }
+        }
+        private static Stream GetStreamFromFile(string fileName)
+        {
+            Uri resource = new(fileName, UriKind.Relative);
+            Stream stream = System.Windows.Application.GetResourceStream(resource);
+            return stream;
         }
     }
 }

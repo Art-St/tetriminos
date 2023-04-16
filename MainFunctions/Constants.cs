@@ -24,5 +24,15 @@
             public const string T_BLOCK = "Assets/Block-T.png";
             public const string Z_BLOCK = "Assets/Block-Z.png";
         }
+        public static class Audio
+        {
+            public const string MAIN_MUSIC = "Assets/Music/Free-Duel-Menu.mp3";
+        }
+        public static class SoundEffects
+        {
+            public const string MOVE_BLOCK = "Assets/SFX/Move.mp3";
+            public const string ROTATE_BLOCK = "Assets/SFX/Spin.mp3";
+            public const string BLOCKED_MOVEMENT = "Assets/SFX/Blocked.mp3";
+        }
     }
 }
