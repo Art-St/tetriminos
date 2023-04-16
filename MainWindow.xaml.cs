@@ -111,8 +111,8 @@ namespace Tetriminos
         private void Draw(PlayfieldState playfieldState)
         {
             DrawGrid(playfieldState._playfield);
-            DrawGhostBlock(playfieldState.currentBlock);
-            DrawBlock(playfieldState.currentBlock);
+            DrawGhostBlock(playfieldState.CurrentBlock);
+            DrawBlock(playfieldState.CurrentBlock);
             DrawNextBlock(playfieldState._blockQueue);
             DrawHeldBlock(playfieldState._heldBlock);
             ScoreText.Text = $"Score: {playfieldState._score}";
@@ -141,6 +141,9 @@ namespace Tetriminos
                     break;
                 case Key.X:
                     playfieldState.RotateBlockRight();
+                    break;
+                case Key.C:
+                    playfieldState.HoldBlock();
                     break;
                 default:
                     return;
